@@ -1,9 +1,9 @@
 import peasy.*;
 int AXES_DISTANCE = 1000;
-float MULT_FACTOR = 10;
+float MULT_FACTOR = 1;
 float MAX_FORCE = 0.2 * MULT_FACTOR;
 float MAX_SPEED = 2 * MULT_FACTOR;
-float _RADIUS = 400;
+float _RADIUS = 500;
 int LOWERBOUND = -(AXES_DISTANCE - 50);
 int UPPERBOUND = AXES_DISTANCE - 50;
 PeasyCam camera;
@@ -71,6 +71,7 @@ class Boid {
     velocity.limit(MAX_SPEED);
     location.add(velocity);
     acceleration.mult(0);
+    boundaries();
   }
   void boundaries() {
     if (location.x > UPPERBOUND || location.x < LOWERBOUND) {
@@ -95,7 +96,7 @@ class Boid {
     int count = 0;
     for (int i = 0; i < boids.length; i++) {
       float d = PVector.dist(this.location, boids[i].location);
-      if (d <= _RADIUS && d != 0) {
+      if (d <= _RADIUS && d > 0) {
         acc.add(boids[i].location);
         count++;
       }
@@ -104,24 +105,46 @@ class Boid {
       return location;
     }
     acc.div(count);
-    return acc;
+    return steer(acc);
   }
   PVector separation(Boid[] boids) {
     PVector sep = new PVector();
     int count = 0;
     for (int i = 0; i < boids.length; i++) {
       float dist = location.dist(boids[i].location);
-      if (dist <= (_RADIUS/5) && dist > 0.001) {
+      if (dist <= (_RADIUS/5) && dist > 0) {
         PVector dv = (this.location.sub(boids[i].location));
         sep.add(dv);
         count++;
       }
     }
     if (count == 0) {
-      return location;
+      return steer(sep);
     }
     sep.div(count);
+    if (sep.magSq() > 0) {
+      sep.normalize();
+      sep.mult(MAX_SPEED);
+      sep.sub(velocity);
+      sep.limit(MAX_FORCE);
+    }
     return sep;
+  }
+  PVector align(Boid[] boids) {
+    PVector acc = new PVector();
+    int count = 0;
+    for (int i = 0; i < boids.length; i++) {
+      float d = PVector.dist(this.location, boids[i].location);
+      if (d <= _RADIUS && d > 0) {
+        acc.add(boids[i].velocity);
+        count++;
+      }
+    }
+    if (count == 0) {
+      return new PVector();
+    }
+    acc.div(count);
+    return steer(acc);
   }
 }
 class Flock {
@@ -136,8 +159,11 @@ class Flock {
   void step() {
     for (int i = 0; i < boids.length; i++) {
       PVector cohesion = boids[i].cohesion(boids);
-      PVector steerForce = boids[i].steer(cohesion);
-      boids[i].applyForce(steerForce);
+      PVector separation = boids[i].separation(boids);
+      //PVector align = boids[i].align(boids);
+      boids[i].applyForce(cohesion);
+      boids[i].applyForce(separation);
+      //boids[i].applyForce(align);
       boids[i].step();
     }
   }
